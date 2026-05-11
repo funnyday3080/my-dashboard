@@ -1,26 +1,117 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&family=Nanum+Gothic:wght@400;700&family=Nanum+Myeongjo:wght@400;700&display=swap');
+@import url('https://hangeul.pstatic.net/hangeul_static/css/nanum-barun-gothic.css');
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-family: NanumBarunGothic, sans-serif;
+  --font-size: 15px;
+
+  --bg: #ffffff;
+  --sidebar: #f7f7f5;
+  --border: #e9e9e7;
+  --foreground: #1a1a1a;
+  --muted: #6b7280;
+  --accent: #f0efec;
+  --accent-fg: #1a1a1a;
+  --primary: #2563eb;
+  --primary-fg: #ffffff;
+  --card: #ffffff;
+  --success: #16a34a;
+  --danger: #dc2626;
+}
+
+[data-theme="dark"] {
+  --bg: #191919;
+  --sidebar: #141414;
+  --border: #2e2e2e;
+  --foreground: #e8e8e8;
+  --muted: #8a8a8a;
+  --accent: #2a2a2a;
+  --accent-fg: #e8e8e8;
+  --primary: #3b82f6;
+  --primary-fg: #ffffff;
+  --card: #1f1f1f;
+}
+
+[data-theme="developer"] {
+  --bg: #0d1117;
+  --sidebar: #090c10;
+  --border: #21262d;
+  --foreground: #c9d1d9;
+  --muted: #8b949e;
+  --accent: #161b22;
+  --accent-fg: #58a6ff;
+  --primary: #58a6ff;
+  --primary-fg: #0d1117;
+  --card: #161b22;
+  --success: #3fb950;
+  --danger: #f85149;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: var(--font-size); }
+
+body {
+  font-family: var(--font-family), 'Noto Sans KR', sans-serif;
+  background-color: var(--bg);
+  color: var(--foreground);
+  line-height: 1.6;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 @theme inline {
-  --color-background: var(--background);
+  --color-background: var(--bg);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-border: var(--border);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-fg);
+  --color-sidebar: var(--sidebar);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-fg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* TipTap */
+.ProseMirror { outline: none; min-height: 200px; }
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  pointer-events: none;
+  float: left;
+  height: 0;
 }
+.ProseMirror table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+.ProseMirror th, .ProseMirror td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; min-width: 60px; }
+.ProseMirror th { background: var(--accent); font-weight: 600; }
+.ProseMirror h1 { font-size: 1.75rem; font-weight: 700; margin: 1rem 0 0.5rem; }
+.ProseMirror h2 { font-size: 1.4rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+.ProseMirror h3 { font-size: 1.15rem; font-weight: 600; margin: 0.75rem 0 0.4rem; }
+.ProseMirror ul, .ProseMirror ol { padding-left: 1.5rem; margin: 0.5rem 0; }
+.ProseMirror blockquote { border-left: 3px solid var(--primary); padding-left: 1rem; color: var(--muted); margin: 0.75rem 0; }
+.ProseMirror code { background: var(--accent); padding: 0.1em 0.3em; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
+.ProseMirror pre { background: var(--accent); padding: 1rem; border-radius: 6px; margin: 0.75rem 0; overflow-x: auto; }
+.ProseMirror pre code { background: none; padding: 0; }
+.ProseMirror a { color: var(--primary); text-decoration: underline; cursor: pointer; }
+.ProseMirror .selectedCell { background: rgba(37, 99, 235, 0.1); }
+.ProseMirror hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+
+/* react-big-calendar overrides */
+.rbc-calendar { font-family: var(--font-family), sans-serif; color: var(--foreground); }
+.rbc-toolbar button { color: var(--foreground); background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+.rbc-toolbar button:hover { background: var(--accent); }
+.rbc-toolbar button.rbc-active { background: var(--primary); color: var(--primary-fg); }
+.rbc-header { background: var(--sidebar); border-bottom: 1px solid var(--border); padding: 6px 0; font-weight: 500; }
+.rbc-month-view, .rbc-time-view, .rbc-agenda-view { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.rbc-day-bg + .rbc-day-bg { border-left: 1px solid var(--border); }
+.rbc-month-row + .rbc-month-row { border-top: 1px solid var(--border); }
+.rbc-off-range-bg { background: var(--sidebar); }
+.rbc-today { background: rgba(37, 99, 235, 0.05); }
+.rbc-event { background: var(--primary); border-radius: 4px; padding: 2px 6px; font-size: 0.8rem; }
+.rbc-show-more { color: var(--primary); font-size: 0.8rem; cursor: pointer; }
