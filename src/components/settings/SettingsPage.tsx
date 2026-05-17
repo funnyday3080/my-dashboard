@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import { signInWithRedirect, signInWithPopup, GoogleAuthProvider, signOut, getRedirectResult } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuthStore } from "@/store/authStore";
 import { useSettingsStore, FONT_OPTIONS } from "@/store/settingsStore";
@@ -33,6 +33,7 @@ export default function SettingsPage() {
   const [sendStatus, setSendStatus] = useState<"" | "sending" | "ok" | "err">("");
 
   useEffect(() => {
+    getRedirectResult(auth).catch(() => {});
     setKakaoConnected(isKakaoLoggedIn());
     const saved = localStorage.getItem("kakaoReminder");
     if (saved) {
@@ -75,7 +76,11 @@ export default function SettingsPage() {
   };
 
   const handleGoogleLogin = async () => {
-    await signInWithPopup(auth, new GoogleAuthProvider());
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch {
+      await signInWithRedirect(auth, new GoogleAuthProvider());
+    }
   };
 
   return (
