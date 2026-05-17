@@ -86,6 +86,12 @@ body {
   transition: background-color 0.2s, color 0.2s;
 }
 
+/* 다크/개발자 테마에서 퀵 링크 bg 색상 덮어쓰기 */
+[data-theme="dark"] .link-bg,
+[data-theme="developer"] .link-bg {
+  background: var(--accent) !important;
+}
+
 @theme inline {
   --color-background: var(--bg);
   --color-foreground: var(--foreground);
