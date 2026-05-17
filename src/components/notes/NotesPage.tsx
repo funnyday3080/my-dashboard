@@ -13,6 +13,7 @@ export default function NotesPage() {
   const [folders, setFolders] = useState<NoteFolder[]>([]);
   const [pages, setPages] = useState<NotePage[]>([]);
   const [selectedPage, setSelectedPage] = useState<NotePage | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -35,24 +36,35 @@ export default function NotesPage() {
     setSelectedPage(live ?? page);
   };
 
+  const handleSelectFolder = (folderId: string | null) => {
+    setSelectedFolderId(folderId);
+  };
+
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-5" style={{ color: "var(--foreground)" }}>공부 노트</h2>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "20px", color: "var(--foreground)" }}>공부 노트</h2>
       <div
-        className="flex rounded-xl border overflow-hidden"
-        style={{ borderColor: "var(--border)", background: "var(--card)", height: "calc(100vh - 160px)" }}
+        style={{
+          display: "flex", borderRadius: "12px",
+          border: "1px solid var(--border)", background: "var(--card)",
+          height: "calc(100vh - 160px)", overflow: "hidden",
+        }}
       >
         <NoteTree
           folders={folders}
           pages={pages}
           selectedPageId={selectedPage?.id ?? null}
+          selectedFolderId={selectedFolderId}
           onSelectPage={handleSelectPage}
+          onSelectFolder={handleSelectFolder}
         />
         {selectedPage ? (
           <NoteEditor key={selectedPage.id} page={selectedPage} />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-sm" style={{ color: "var(--muted)" }}>
-            왼쪽에서 페이지를 선택하세요
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+            <p style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
+              {selectedFolderId ? "페이지를 선택하거나 추가하세요" : "왼쪽에서 폴더를 선택하세요"}
+            </p>
           </div>
         )}
       </div>
