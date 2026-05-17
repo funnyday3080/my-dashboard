@@ -6,6 +6,7 @@ import { isToday, isTomorrow, parseISO, format, startOfWeek, addDays } from "dat
 import { ko } from "date-fns/locale";
 import { useAuthStore } from "@/store/authStore";
 import { subscribeTodos } from "@/lib/firestore";
+import { loadTodos } from "@/lib/storage";
 import type { Todo, TodoStatus } from "@/types";
 
 const WEEK_DAYS = ["월", "화", "수", "목", "금", "토", "일"];
@@ -35,8 +36,11 @@ export default function HomePage() {
   const [todos, setTodos] = useState<Todo[]>([]);
 
   useEffect(() => {
-    if (!user) return;
-    return subscribeTodos(user.uid, setTodos);
+    if (user) {
+      return subscribeTodos(user.uid, setTodos);
+    } else {
+      setTodos(loadTodos());
+    }
   }, [user]);
 
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });

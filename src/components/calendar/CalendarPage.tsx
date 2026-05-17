@@ -6,75 +6,61 @@ import { ko } from "date-fns/locale";
 import { Plus, X } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { subscribeEvents, addEvent, updateEvent, deleteEvent } from "@/lib/firestore";
+import { loadEvents, saveEvents, genId } from "@/lib/storage";
 import type { CalendarEvent } from "@/types";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
 const localizer = dateFnsLocalizer({
-  format,
-  parse,
+  format, parse,
   startOfWeek: (d: Date) => startOfWeek(d, { weekStartsOn: 0 }),
-  getDay,
-  locales: { ko },
+  getDay, locales: { ko },
 });
 
 const MESSAGES = {
-  today: "오늘",
-  previous: "이전",
-  next: "다음",
-  month: "월",
-  week: "주",
-  day: "일",
-  agenda: "목록",
-  date: "날짜",
-  time: "시간",
-  event: "일정",
+  today: "오늘", previous: "이전", next: "다음",
+  month: "월", week: "주", day: "일", agenda: "목록",
+  date: "날짜", time: "시간", event: "일정",
   noEventsInRange: "이 기간에 일정이 없습니다.",
   showMore: (n: number) => `+${n}개 더`,
 };
 
-interface EventForm {
-  title: string;
-  start: string;
-  end: string;
-  allDay: boolean;
-  color: string;
-}
-
+interface EventForm { title: string; start: string; end: string; allDay: boolean; color: string; }
 const COLORS = ["#2563eb", "#16a34a", "#dc2626", "#d97706", "#7c3aed", "#0891b2"];
 
 export default function CalendarPage() {
   const { user } = useAuthStore();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<EventForm>({
-    title: "",
-    start: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-    end: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-    allDay: false,
-    color: COLORS[0],
+    title: "", start: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+    end: format(new Date(), "yyyy-MM-dd'T'HH:mm"), allDay: false, color: COLORS[0],
   });
 
   useEffect(() => {
-    if (!user) return;
-    return subscribeEvents(user.uid, setEvents);
+    if (user) {
+      setLoaded(true);
+      return subscribeEvents(user.uid, setEvents);
+    } else {
+      setEvents(loadEvents());
+      setLoaded(true);
+    }
   }, [user]);
 
-  const rbcEvents = events.map((e) => ({
-    ...e,
-    start: new Date(e.start),
-    end: new Date(e.end),
-    resource: e,
-  }));
+  useEffect(() => {
+    if (!loaded || user) return;
+    saveEvents(events);
+  }, [events, user, loaded]);
+
+  const rbcEvents = events.map(e => ({ ...e, start: new Date(e.start), end: new Date(e.end), resource: e }));
 
   const openNew = useCallback((slotInfo?: { start: Date; end: Date }) => {
     setEditId(null);
     setForm({
-      title: "",
+      title: "", color: COLORS[0], allDay: false,
       start: format(slotInfo?.start ?? new Date(), "yyyy-MM-dd'T'HH:mm"),
       end: format(slotInfo?.end ?? new Date(), "yyyy-MM-dd'T'HH:mm"),
-      allDay: false,
-      color: COLORS[0],
     });
     setShowModal(true);
   }, []);
@@ -83,47 +69,50 @@ export default function CalendarPage() {
     const e = event.resource;
     setEditId(e.id);
     setForm({
-      title: e.title,
+      title: e.title, allDay: e.allDay, color: e.color ?? COLORS[0],
       start: format(new Date(e.start), "yyyy-MM-dd'T'HH:mm"),
       end: format(new Date(e.end), "yyyy-MM-dd'T'HH:mm"),
-      allDay: e.allDay,
-      color: e.color ?? COLORS[0],
     });
     setShowModal(true);
   }, []);
 
   const handleSave = async () => {
-    if (!user || !form.title.trim()) return;
+    if (!form.title.trim()) return;
     const data = {
-      title: form.title,
+      title: form.title, allDay: form.allDay, color: form.color,
       start: new Date(form.start).toISOString(),
       end: new Date(form.end).toISOString(),
-      allDay: form.allDay,
-      color: form.color,
     };
-    if (editId) {
-      await updateEvent(user.uid, editId, data);
+    if (user) {
+      if (editId) await updateEvent(user.uid, editId, data);
+      else        await addEvent(user.uid, data);
     } else {
-      await addEvent(user.uid, data);
+      if (editId) {
+        setEvents(prev => prev.map(e => e.id === editId ? { ...e, ...data } : e));
+      } else {
+        setEvents(prev => [...prev, { id: genId(), ...data }]);
+      }
     }
     setShowModal(false);
   };
 
   const handleDelete = async () => {
-    if (!user || !editId) return;
-    await deleteEvent(user.uid, editId);
+    if (!editId) return;
+    if (user) await deleteEvent(user.uid, editId);
+    else      setEvents(prev => prev.filter(e => e.id !== editId));
     setShowModal(false);
   };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>캘린더</h2>
-        <button
-          onClick={() => openNew()}
-          className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 hover:opacity-90 transition"
-          style={{ background: "var(--primary)", color: "var(--primary-fg)" }}
-        >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+        <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--foreground)" }}>캘린더</h2>
+        <button onClick={() => openNew()}
+          style={{
+            display: "flex", alignItems: "center", gap: "6px",
+            padding: "9px 18px", borderRadius: "12px", fontSize: "0.875rem", fontWeight: 500,
+            border: "none", cursor: "pointer", background: "var(--primary)", color: "var(--primary-fg)",
+          }}>
           <Plus size={15} /> 일정 추가
         </button>
       </div>
@@ -144,95 +133,63 @@ export default function CalendarPage() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowModal(false)}>
-          <div
-            className="w-full max-w-md rounded-xl p-6 shadow-2xl"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-base" style={{ color: "var(--foreground)" }}>
-                {editId ? "일정 수정" : "새 일정"}
-              </h3>
-              <button onClick={() => setShowModal(false)} style={{ color: "var(--muted)" }}><X size={18} /></button>
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }}
+          onClick={() => setShowModal(false)}>
+          <div style={{ width: "100%", maxWidth: "440px", borderRadius: "20px", padding: "24px", background: "var(--card)", border: "1px solid var(--border)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h3 style={{ fontWeight: 700, fontSize: "1rem", color: "var(--foreground)" }}>{editId ? "일정 수정" : "새 일정"}</h3>
+              <button onClick={() => setShowModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)" }}><X size={18} /></button>
             </div>
 
-            <div className="space-y-3">
-              <input
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                placeholder="제목"
-                className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
-                style={{ background: "var(--accent)", border: "1px solid var(--border)", color: "var(--foreground)" }}
-                autoFocus
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
+                placeholder="제목" autoFocus
+                style={{ width: "100%", padding: "9px 12px", borderRadius: "10px", border: "1px solid var(--border)", background: "var(--accent)", color: "var(--foreground)", outline: "none", fontSize: "0.875rem" }}
               />
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <div>
-                  <label className="text-xs mb-1 block" style={{ color: "var(--muted)" }}>시작</label>
-                  <input
-                    type="datetime-local"
-                    value={form.start}
-                    onChange={(e) => setForm({ ...form, start: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
-                    style={{ background: "var(--accent)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+                  <label style={{ fontSize: "0.75rem", color: "var(--muted)", display: "block", marginBottom: "4px" }}>시작</label>
+                  <input type="datetime-local" value={form.start} onChange={e => setForm({ ...form, start: e.target.value })}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: "10px", border: "1px solid var(--border)", background: "var(--accent)", color: "var(--foreground)", outline: "none", fontSize: "0.82rem" }}
                   />
                 </div>
                 <div>
-                  <label className="text-xs mb-1 block" style={{ color: "var(--muted)" }}>종료</label>
-                  <input
-                    type="datetime-local"
-                    value={form.end}
-                    onChange={(e) => setForm({ ...form, end: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
-                    style={{ background: "var(--accent)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+                  <label style={{ fontSize: "0.75rem", color: "var(--muted)", display: "block", marginBottom: "4px" }}>종료</label>
+                  <input type="datetime-local" value={form.end} onChange={e => setForm({ ...form, end: e.target.value })}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: "10px", border: "1px solid var(--border)", background: "var(--accent)", color: "var(--foreground)", outline: "none", fontSize: "0.82rem" }}
                   />
                 </div>
               </div>
-              <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--foreground)" }}>
-                <input type="checkbox" checked={form.allDay} onChange={(e) => setForm({ ...form, allDay: e.target.checked })} />
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.875rem", cursor: "pointer", color: "var(--foreground)" }}>
+                <input type="checkbox" checked={form.allDay} onChange={e => setForm({ ...form, allDay: e.target.checked })} />
                 하루 종일
               </label>
               <div>
-                <label className="text-xs mb-1 block" style={{ color: "var(--muted)" }}>색상</label>
-                <div className="flex gap-2">
-                  {COLORS.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setForm({ ...form, color: c })}
-                      className="w-7 h-7 rounded-full transition-transform hover:scale-110"
-                      style={{
-                        background: c,
-                        outline: form.color === c ? `2px solid ${c}` : "none",
-                        outlineOffset: "2px",
-                      }}
+                <label style={{ fontSize: "0.75rem", color: "var(--muted)", display: "block", marginBottom: "6px" }}>색상</label>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {COLORS.map(c => (
+                    <button key={c} onClick={() => setForm({ ...form, color: c })}
+                      style={{ width: "28px", height: "28px", borderRadius: "50%", background: c, border: "none", cursor: "pointer", outline: form.color === c ? `2px solid ${c}` : "none", outlineOffset: "2px" }}
                     />
                   ))}
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-2 mt-5">
+            <div style={{ display: "flex", gap: "8px", marginTop: "20px" }}>
               {editId && (
-                <button
-                  onClick={handleDelete}
-                  className="px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition"
-                  style={{ background: "var(--danger)", color: "#fff" }}
-                >
+                <button onClick={handleDelete}
+                  style={{ padding: "9px 18px", borderRadius: "10px", border: "none", background: "var(--danger)", color: "#fff", cursor: "pointer", fontSize: "0.875rem" }}>
                   삭제
                 </button>
               )}
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium ml-auto hover:opacity-70 transition"
-                style={{ color: "var(--muted)" }}
-              >
+              <button onClick={() => setShowModal(false)}
+                style={{ padding: "9px 18px", borderRadius: "10px", border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer", fontSize: "0.875rem", marginLeft: "auto" }}>
                 취소
               </button>
-              <button
-                onClick={handleSave}
-                className="px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition"
-                style={{ background: "var(--primary)", color: "var(--primary-fg)" }}
-              >
+              <button onClick={handleSave}
+                style={{ padding: "9px 22px", borderRadius: "10px", border: "none", background: "var(--primary)", color: "var(--primary-fg)", cursor: "pointer", fontSize: "0.875rem", fontWeight: 500 }}>
                 저장
               </button>
             </div>

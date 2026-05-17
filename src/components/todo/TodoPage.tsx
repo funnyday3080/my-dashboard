@@ -9,6 +9,7 @@ import { Plus, Trash2, Check, LayoutGrid, List, CalendarDays, ChevronLeft, Chevr
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { useAuthStore } from "@/store/authStore";
 import { subscribeTodos, addTodo, updateTodo, deleteTodo } from "@/lib/firestore";
+import { loadTodos, saveTodos, genId } from "@/lib/storage";
 import { isKakaoLoggedIn, sendKakaoMessage } from "@/lib/kakao";
 import type { Todo, TodoStatus, TodoPriority } from "@/types";
 import { cn } from "@/lib/utils";
@@ -99,6 +100,7 @@ function TodoCard({ todo, onToggle, onDelete, dragging }: {
 export default function TodoPage() {
   const { user } = useAuthStore();
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [timeView, setTimeView] = useState<TimeView>("daily");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("list");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -109,12 +111,24 @@ export default function TodoPage() {
   const todosRef = useRef<Todo[]>([]);
   todosRef.current = todos;
 
+  // Load: Firestore if logged in, localStorage if not
   useEffect(() => {
-    if (!user) return;
-    return subscribeTodos(user.uid, setTodos);
+    if (user) {
+      setLoaded(true);
+      return subscribeTodos(user.uid, setTodos);
+    } else {
+      setTodos(loadTodos());
+      setLoaded(true);
+    }
   }, [user]);
 
-  // 카카오 매일 알림 스케줄러 (페이지가 열려있을 때 작동)
+  // Persist to localStorage when not logged in
+  useEffect(() => {
+    if (!loaded || user) return;
+    saveTodos(todos);
+  }, [todos, user, loaded]);
+
+  // 카카오 알림 스케줄러
   useEffect(() => {
     const check = () => {
       const saved = localStorage.getItem("kakaoReminder");
@@ -131,8 +145,7 @@ export default function TodoPage() {
         const todayTodos = todosRef.current.filter(t => {
           try { return isToday(parseISO(t.date)); } catch { return false; }
         });
-        const text = buildKakaoText(todayTodos);
-        sendKakaoMessage(text).catch(() => {});
+        sendKakaoMessage(buildKakaoText(todayTodos)).catch(() => {});
         localStorage.setItem("kakaoLastSent", today);
       }
     };
@@ -152,10 +165,7 @@ export default function TodoPage() {
   };
 
   const handleKakaoSend = async () => {
-    if (!isKakaoLoggedIn()) {
-      alert("설정에서 카카오 로그인 후 사용할 수 있습니다.");
-      return;
-    }
+    if (!isKakaoLoggedIn()) { alert("설정에서 카카오 로그인 후 사용할 수 있습니다."); return; }
     setKakaoStatus("sending");
     try {
       const todayTodos = todos.filter(t => { try { return isToday(parseISO(t.date)); } catch { return false; } });
@@ -187,22 +197,41 @@ export default function TodoPage() {
   const pct = filtered.length > 0 ? Math.round((done / filtered.length) * 100) : 0;
 
   const handleAdd = async () => {
-    if (!user || !newTitle.trim()) return;
-    await addTodo(user.uid, {
-      title: newTitle.trim(), completed: false,
-      status: "todo", priority: newPriority,
-      date: format(currentDate, "yyyy-MM-dd"), viewType: timeView,
-    });
+    if (!newTitle.trim()) return;
+    if (user) {
+      await addTodo(user.uid, {
+        title: newTitle.trim(), completed: false,
+        status: "todo", priority: newPriority,
+        date: format(currentDate, "yyyy-MM-dd"), viewType: timeView,
+      });
+    } else {
+      const t: Todo = {
+        id: genId(), title: newTitle.trim(), completed: false,
+        status: "todo", priority: newPriority,
+        date: format(currentDate, "yyyy-MM-dd"), viewType: timeView,
+        createdAt: Date.now(),
+      };
+      setTodos(prev => [...prev, t]);
+    }
     setNewTitle("");
   };
 
   const handleToggle = (t: Todo) => {
-    if (!user) return;
     const next: TodoStatus = t.status === "done" ? "todo" : "done";
-    updateTodo(user.uid, t.id, { status: next, completed: next === "done" });
+    if (user) {
+      updateTodo(user.uid, t.id, { status: next, completed: next === "done" });
+    } else {
+      setTodos(prev => prev.map(x => x.id === t.id ? { ...x, status: next, completed: next === "done" } : x));
+    }
   };
 
-  const handleDelete = (id: string) => user && deleteTodo(user.uid, id);
+  const handleDelete = (id: string) => {
+    if (user) {
+      deleteTodo(user.uid, id);
+    } else {
+      setTodos(prev => prev.filter(x => x.id !== id));
+    }
+  };
 
   const navigate = (dir: -1 | 1) => {
     const d = new Date(currentDate);
@@ -214,9 +243,13 @@ export default function TodoPage() {
   };
 
   const onDragEnd = (result: DropResult) => {
-    if (!result.destination || !user) return;
+    if (!result.destination) return;
     const newStatus = result.destination.droppableId as TodoStatus;
-    updateTodo(user.uid, result.draggableId, { status: newStatus, completed: newStatus === "done" });
+    if (user) {
+      updateTodo(user.uid, result.draggableId, { status: newStatus, completed: newStatus === "done" });
+    } else {
+      setTodos(prev => prev.map(x => x.id === result.draggableId ? { ...x, status: newStatus, completed: newStatus === "done" } : x));
+    }
   };
 
   return (
@@ -225,42 +258,38 @@ export default function TodoPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
         <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--foreground)" }}>할 일</h2>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {/* 카카오 전송 버튼 */}
-          <button onClick={handleKakaoSend}
-            title="오늘 할 일을 카카오톡으로 전송"
+          <button onClick={handleKakaoSend} title="오늘 할 일을 카카오톡으로 전송"
             style={{
               display: "flex", alignItems: "center", gap: "5px",
               padding: "6px 14px", borderRadius: "10px", border: "none", cursor: "pointer",
-              fontSize: "0.8rem", fontWeight: 500,
-              background: "#FEE500", color: "#191919",
+              fontSize: "0.8rem", fontWeight: 500, background: "#FEE500", color: "#191919",
               opacity: kakaoStatus === "sending" ? 0.7 : 1,
             }}>
             <Send size={13} />
             {kakaoStatus === "sending" ? "전송 중..." : kakaoStatus === "ok" ? "✅ 전송됨" : kakaoStatus === "err" ? "❌ 실패" : "카카오 전송"}
           </button>
-        <div style={{ display: "flex", gap: "4px", padding: "4px", borderRadius: "10px", background: "var(--accent)" }}>
-          {[
-            { mode: "list" as DisplayMode,   icon: <List size={15} />,         title: "목록" },
-            { mode: "kanban" as DisplayMode, icon: <LayoutGrid size={15} />,   title: "칸반" },
-            { mode: "weekly" as DisplayMode, icon: <CalendarDays size={15} />, title: "주간" },
-          ].map(({ mode, icon, title }) => (
-            <button key={mode} onClick={() => setDisplayMode(mode)} title={title}
-              style={{
-                padding: "5px 10px", borderRadius: "7px", border: "none", cursor: "pointer",
-                fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px",
-                background: displayMode === mode ? "var(--card)" : "transparent",
-                color: displayMode === mode ? "var(--foreground)" : "var(--muted)",
-                boxShadow: displayMode === mode ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
-              }}>
-              {icon}
-              <span style={{ fontSize: "0.75rem" }}>{title}</span>
-            </button>
-          ))}
-        </div>
+          <div style={{ display: "flex", gap: "4px", padding: "4px", borderRadius: "10px", background: "var(--accent)" }}>
+            {[
+              { mode: "list" as DisplayMode,   icon: <List size={15} />,         title: "목록" },
+              { mode: "kanban" as DisplayMode, icon: <LayoutGrid size={15} />,   title: "칸반" },
+              { mode: "weekly" as DisplayMode, icon: <CalendarDays size={15} />, title: "주간" },
+            ].map(({ mode, icon, title }) => (
+              <button key={mode} onClick={() => setDisplayMode(mode)} title={title}
+                style={{
+                  padding: "5px 10px", borderRadius: "7px", border: "none", cursor: "pointer",
+                  fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px",
+                  background: displayMode === mode ? "var(--card)" : "transparent",
+                  color: displayMode === mode ? "var(--foreground)" : "var(--muted)",
+                  boxShadow: displayMode === mode ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+                }}>
+                {icon}
+                <span style={{ fontSize: "0.75rem" }}>{title}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Weekly planner mode */}
       {displayMode === "weekly" && (
         <WeeklyPlanner
           todos={todos}
@@ -269,10 +298,8 @@ export default function TodoPage() {
         />
       )}
 
-      {/* List/Kanban shared controls */}
       {displayMode !== "weekly" && (
         <>
-          {/* Smart chips */}
           <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
             {[
               { label: "오늘", count: todayCount, color: "#dc2626" },
@@ -289,7 +316,6 @@ export default function TodoPage() {
             ))}
           </div>
 
-          {/* Time view tabs */}
           <div style={{ display: "flex", gap: "4px", padding: "4px", borderRadius: "12px", background: "var(--accent)", marginBottom: "12px" }}>
             {TIME_VIEWS.map(v => (
               <button key={v.key} onClick={() => setTimeView(v.key)}
@@ -305,22 +331,18 @@ export default function TodoPage() {
             ))}
           </div>
 
-          {/* Navigation */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
             <button onClick={() => navigate(-1)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", padding: "4px 8px" }}>
               <ChevronLeft size={18} />
             </button>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
-              <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--foreground)" }}>
-                {getRangeLabel(timeView, currentDate)}
-              </span>
-            </div>
+            <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--foreground)" }}>
+              {getRangeLabel(timeView, currentDate)}
+            </span>
             <button onClick={() => navigate(1)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", padding: "4px 8px" }}>
               <ChevronRight size={18} />
             </button>
           </div>
 
-          {/* Progress bar */}
           {filtered.length > 0 && (
             <div style={{ marginBottom: "16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", marginBottom: "4px", color: "var(--muted)" }}>
@@ -333,7 +355,6 @@ export default function TodoPage() {
             </div>
           )}
 
-          {/* Add input */}
           <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
             <input
               value={newTitle}
@@ -383,19 +404,14 @@ export default function TodoPage() {
             const col = KANBAN_COLS.find(c => c.key === status)!;
             return (
               <div key={status} style={{ marginBottom: "20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", padding: "0 2px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
                   <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: col.color }} />
-                  <span style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: col.color }}>
-                    {col.label}
-                  </span>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: col.color }}>{col.label}</span>
                   <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{group.length}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   {group.map(t => (
-                    <TodoCard key={t.id} todo={t}
-                      onToggle={() => handleToggle(t)}
-                      onDelete={() => handleDelete(t.id)}
-                    />
+                    <TodoCard key={t.id} todo={t} onToggle={() => handleToggle(t)} onDelete={() => handleDelete(t.id)} />
                   ))}
                 </div>
               </div>
@@ -415,9 +431,7 @@ export default function TodoPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                     <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: col.color }} />
                     <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--foreground)" }}>{col.label}</span>
-                    <span style={{ fontSize: "0.75rem", padding: "1px 8px", borderRadius: "12px", background: col.color + "20", color: col.color }}>
-                      {colTodos.length}
-                    </span>
+                    <span style={{ fontSize: "0.75rem", padding: "1px 8px", borderRadius: "12px", background: col.color + "20", color: col.color }}>{colTodos.length}</span>
                   </div>
                   <Droppable droppableId={col.key}>
                     {(provided, snapshot) => (
@@ -431,20 +445,14 @@ export default function TodoPage() {
                           <Draggable key={todo.id} draggableId={todo.id} index={index}>
                             {(provided, snapshot) => (
                               <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                                <TodoCard todo={todo}
-                                  onToggle={() => handleToggle(todo)}
-                                  onDelete={() => handleDelete(todo.id)}
-                                  dragging={snapshot.isDragging}
-                                />
+                                <TodoCard todo={todo} onToggle={() => handleToggle(todo)} onDelete={() => handleDelete(todo.id)} dragging={snapshot.isDragging} />
                               </div>
                             )}
                           </Draggable>
                         ))}
                         {provided.placeholder}
                         {colTodos.length === 0 && !snapshot.isDraggingOver && (
-                          <div style={{ textAlign: "center", padding: "32px 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                            여기로 드래그
-                          </div>
+                          <div style={{ textAlign: "center", padding: "32px 0", fontSize: "0.8rem", color: "var(--muted)" }}>여기로 드래그</div>
                         )}
                       </div>
                     )}
