@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Table } from "@tiptap/extension-table";
@@ -17,12 +17,11 @@ import {
   Heading1, Heading2, Heading3,
 } from "lucide-react";
 import type { NotePage } from "@/types";
-import { useAuthStore } from "@/store/authStore";
-import { updatePage } from "@/lib/firestore";
 import { cn } from "@/lib/utils";
 
 interface Props {
-  page: NotePage;
+  note: NotePage;
+  onUpdate: (data: Partial<NotePage>) => void;
 }
 
 function ToolbarBtn({ active, onClick, children, title }: { active?: boolean; onClick: () => void; children: React.ReactNode; title?: string }) {
@@ -39,32 +38,23 @@ function ToolbarBtn({ active, onClick, children, title }: { active?: boolean; on
 }
 
 function ToolbarSep() {
-  return <div className="w-px h-5 mx-1 self-center" style={{ background: "var(--border)" }} />;
+  return <div style={{ width: "1px", height: "18px", margin: "0 4px", alignSelf: "center", background: "var(--border)" }} />;
 }
 
-export default function NoteEditor({ page }: Props) {
-  const { user } = useAuthStore();
-  const [title, setTitle] = useState(page.title);
+export default function NoteEditor({ note, onUpdate }: Props) {
+  const [title, setTitle] = useState(note.title);
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "">("");
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const saveContent = useCallback(
-    async (content: string) => {
-      if (!user) return;
-      setSaveStatus("saving");
-      await updatePage(user.uid, page.id, { content, updatedAt: Date.now() });
+  const scheduleSave = useCallback((data: Partial<NotePage>) => {
+    setSaveStatus("saving");
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      onUpdate(data);
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus(""), 1500);
-    },
-    [user, page.id]
-  );
-
-  const saveTitle = useCallback(
-    async (t: string) => {
-      if (!user) return;
-      await updatePage(user.uid, page.id, { title: t, updatedAt: Date.now() });
-    },
-    [user, page.id]
-  );
+    }, 400);
+  }, [onUpdate]);
 
   const editor = useEditor({
     extensions: [
@@ -79,22 +69,33 @@ export default function NoteEditor({ page }: Props) {
       TextStyle,
       Placeholder.configure({ placeholder: "내용을 입력하세요..." }),
     ],
-    content: page.content ? JSON.parse(page.content) : "",
+    content: (() => {
+      if (!note.content) return "";
+      try { return JSON.parse(note.content); } catch { return note.content; }
+    })(),
     onUpdate: ({ editor }) => {
-      const content = JSON.stringify(editor.getJSON());
-      saveContent(content);
+      scheduleSave({ content: JSON.stringify(editor.getJSON()) });
     },
   });
 
   useEffect(() => {
-    if (editor && page.content) {
-      const current = JSON.stringify(editor.getJSON());
-      if (current !== page.content) {
-        editor.commands.setContent(JSON.parse(page.content));
-      }
+    if (editor && note.content) {
+      try {
+        const next = JSON.parse(note.content);
+        const current = JSON.stringify(editor.getJSON());
+        if (current !== note.content) {
+          editor.commands.setContent(next);
+        }
+      } catch { /* ignore */ }
     }
-    setTitle(page.title);
-  }, [page.id]);
+    setTitle(note.title);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note.id]);
+
+  const handleTitleChange = (val: string) => {
+    setTitle(val);
+    scheduleSave({ title: val });
+  };
 
   const setLink = () => {
     if (!editor) return;
@@ -107,29 +108,26 @@ export default function NoteEditor({ page }: Props) {
     }
   };
 
-  const insertTable = () => {
-    editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-  };
-
   if (!editor) return null;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* Title */}
-      <div className="px-8 pt-8 pb-3">
+      <div style={{ padding: "32px 40px 12px" }}>
         <input
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => saveTitle(title)}
-          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          className="w-full text-3xl font-bold bg-transparent outline-none"
-          style={{ color: "var(--foreground)", fontFamily: "var(--font-family)" }}
+          onChange={(e) => handleTitleChange(e.target.value)}
+          style={{
+            width: "100%", fontSize: "1.75rem", fontWeight: 700,
+            background: "transparent", outline: "none", border: "none",
+            color: "var(--foreground)", fontFamily: "var(--font-family)",
+          }}
           placeholder="제목 없음"
         />
       </div>
 
       {/* Toolbar */}
-      <div className="px-8 py-1.5 border-b flex items-center flex-wrap gap-0.5" style={{ borderColor: "var(--border)" }}>
+      <div style={{ padding: "6px 40px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "2px" }}>
         <ToolbarBtn active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="제목1"><Heading1 size={15} /></ToolbarBtn>
         <ToolbarBtn active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="제목2"><Heading2 size={15} /></ToolbarBtn>
         <ToolbarBtn active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} title="제목3"><Heading3 size={15} /></ToolbarBtn>
@@ -139,27 +137,27 @@ export default function NoteEditor({ page }: Props) {
         <ToolbarBtn active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()} title="밑줄"><UnderlineIcon size={15} /></ToolbarBtn>
         <ToolbarBtn active={editor.isActive("code")} onClick={() => editor.chain().focus().toggleCode().run()} title="코드"><Code size={15} /></ToolbarBtn>
         <ToolbarSep />
-        <ToolbarBtn active={editor.isActive({ textAlign: "left" })} onClick={() => editor.chain().focus().setTextAlign("left").run()} title="왼쪽 정렬"><AlignLeft size={15} /></ToolbarBtn>
-        <ToolbarBtn active={editor.isActive({ textAlign: "center" })} onClick={() => editor.chain().focus().setTextAlign("center").run()} title="가운데 정렬"><AlignCenter size={15} /></ToolbarBtn>
-        <ToolbarBtn active={editor.isActive({ textAlign: "right" })} onClick={() => editor.chain().focus().setTextAlign("right").run()} title="오른쪽 정렬"><AlignRight size={15} /></ToolbarBtn>
+        <ToolbarBtn active={editor.isActive({ textAlign: "left" })} onClick={() => editor.chain().focus().setTextAlign("left").run()} title="왼쪽"><AlignLeft size={15} /></ToolbarBtn>
+        <ToolbarBtn active={editor.isActive({ textAlign: "center" })} onClick={() => editor.chain().focus().setTextAlign("center").run()} title="가운데"><AlignCenter size={15} /></ToolbarBtn>
+        <ToolbarBtn active={editor.isActive({ textAlign: "right" })} onClick={() => editor.chain().focus().setTextAlign("right").run()} title="오른쪽"><AlignRight size={15} /></ToolbarBtn>
         <ToolbarSep />
-        <ToolbarBtn active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()} title="불릿 리스트"><List size={15} /></ToolbarBtn>
-        <ToolbarBtn active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="번호 리스트"><ListOrdered size={15} /></ToolbarBtn>
-        <ToolbarBtn active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="인용문"><Quote size={15} /></ToolbarBtn>
+        <ToolbarBtn active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()} title="불릿"><List size={15} /></ToolbarBtn>
+        <ToolbarBtn active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="번호"><ListOrdered size={15} /></ToolbarBtn>
+        <ToolbarBtn active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="인용"><Quote size={15} /></ToolbarBtn>
         <ToolbarBtn active={false} onClick={() => editor.chain().focus().setHorizontalRule().run()} title="구분선"><Minus size={15} /></ToolbarBtn>
         <ToolbarSep />
         <ToolbarBtn active={editor.isActive("link")} onClick={setLink} title="링크"><LinkIcon size={15} /></ToolbarBtn>
-        <ToolbarBtn active={false} onClick={insertTable} title="표 삽입"><TableIcon size={15} /></ToolbarBtn>
+        <ToolbarBtn active={false} onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="표"><TableIcon size={15} /></ToolbarBtn>
 
         {saveStatus && (
-          <span className="ml-auto text-xs" style={{ color: "var(--muted)" }}>
-            {saveStatus === "saving" ? "저장 중..." : "저장됨"}
+          <span style={{ marginLeft: "auto", fontSize: "0.72rem", color: "var(--muted)" }}>
+            {saveStatus === "saving" ? "저장 중..." : "✓ 저장됨"}
           </span>
         )}
       </div>
 
       {/* Editor */}
-      <div className="flex-1 overflow-y-auto px-8 py-5">
+      <div style={{ flex: 1, overflowY: "auto", padding: "20px 40px 40px" }}>
         <EditorContent editor={editor} />
       </div>
     </div>
