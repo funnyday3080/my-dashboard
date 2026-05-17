@@ -34,43 +34,44 @@
 }
 
 [data-theme="developer"] {
-  --bg: #0d1117;
-  --sidebar: #090c10;
-  --border: #21262d;
-  --foreground: #e2e8f0;
-  --muted: #7dd3fc;
-  --accent: #161b22;
-  --accent-fg: #f0abfc;
-  --primary: #a78bfa;
-  --primary-fg: #0d1117;
-  --card: #161b22;
-  --success: #34d399;
-  --danger: #fb7185;
+  --bg: #1e1e1e;
+  --sidebar: #252526;
+  --border: #3c3c3c;
+  --foreground: #d4d4d4;
+  --muted: #6a9955;
+  --accent: #2d2d2d;
+  --accent-fg: #9cdcfe;
+  --primary: #007acc;
+  --primary-fg: #ffffff;
+  --card: #252526;
+  --success: #4ec9b0;
+  --danger: #f44747;
 
-  /* 개발자 테마 전용 추가 색상 */
-  --dev-keyword: #ff79c6;
-  --dev-string: #f1fa8c;
-  --dev-number: #bd93f9;
-  --dev-function: #50fa7b;
-  --dev-comment: #6272a4;
-  --dev-tag: #ff5555;
-  --dev-attr: #ffb86c;
-  --dev-cyan: #8be9fd;
+  --dev-keyword: #569cd6;
+  --dev-string: #ce9178;
+  --dev-number: #b5cea8;
+  --dev-function: #dcdcaa;
+  --dev-type: #4ec9b0;
+  --dev-variable: #9cdcfe;
+  --dev-comment: #6a9955;
+  --dev-constant: #4fc1ff;
 }
 
 [data-theme="developer"] h1,
 [data-theme="developer"] h2 {
-  background: linear-gradient(90deg, #a78bfa, #8be9fd, #50fa7b);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--dev-variable);
+  -webkit-text-fill-color: var(--dev-variable);
 }
 
-[data-theme="developer"] a { color: var(--dev-cyan); }
+[data-theme="developer"] h3 { color: var(--dev-function); }
 
-[data-theme="developer"] ::-webkit-scrollbar-thumb { background: #a78bfa44; }
+[data-theme="developer"] a { color: var(--dev-constant); }
 
-[data-theme="developer"] .ProseMirror code { color: var(--dev-string); }
+[data-theme="developer"] strong { color: var(--dev-keyword); }
+
+[data-theme="developer"] ::-webkit-scrollbar-thumb { background: #007acc55; }
+
+[data-theme="developer"] .ProseMirror code { color: var(--dev-string); background: #2d2d2d; }
 [data-theme="developer"] .ProseMirror blockquote { border-left-color: var(--dev-keyword); color: var(--dev-comment); }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
