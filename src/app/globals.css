@@ -37,16 +37,41 @@
   --bg: #0d1117;
   --sidebar: #090c10;
   --border: #21262d;
-  --foreground: #c9d1d9;
-  --muted: #8b949e;
+  --foreground: #e2e8f0;
+  --muted: #7dd3fc;
   --accent: #161b22;
-  --accent-fg: #58a6ff;
-  --primary: #58a6ff;
+  --accent-fg: #f0abfc;
+  --primary: #a78bfa;
   --primary-fg: #0d1117;
   --card: #161b22;
-  --success: #3fb950;
-  --danger: #f85149;
+  --success: #34d399;
+  --danger: #fb7185;
+
+  /* 개발자 테마 전용 추가 색상 */
+  --dev-keyword: #ff79c6;
+  --dev-string: #f1fa8c;
+  --dev-number: #bd93f9;
+  --dev-function: #50fa7b;
+  --dev-comment: #6272a4;
+  --dev-tag: #ff5555;
+  --dev-attr: #ffb86c;
+  --dev-cyan: #8be9fd;
 }
+
+[data-theme="developer"] h1,
+[data-theme="developer"] h2 {
+  background: linear-gradient(90deg, #a78bfa, #8be9fd, #50fa7b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="developer"] a { color: var(--dev-cyan); }
+
+[data-theme="developer"] ::-webkit-scrollbar-thumb { background: #a78bfa44; }
+
+[data-theme="developer"] .ProseMirror code { color: var(--dev-string); }
+[data-theme="developer"] .ProseMirror blockquote { border-left-color: var(--dev-keyword); color: var(--dev-comment); }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
