@@ -102,6 +102,7 @@ function FolderNode({
             </>
           ) : (
             <>
+              <button onClick={(e) => { e.stopPropagation(); onAddFolder("새 폴더", folder.id); setOpen(true); }} style={{ color: "var(--muted)", padding: "2px" }} title="하위 폴더 추가"><FolderPlus size={11} /></button>
               <button onClick={(e) => { e.stopPropagation(); setEditing(true); }} style={{ color: "var(--muted)", padding: "2px" }} title="이름 변경"><Edit2 size={11} /></button>
               <button onClick={(e) => { e.stopPropagation(); if (confirm(`"${folder.name}" 폴더를 삭제하시겠습니까?`)) onDeleteFolder(folder.id); }} style={{ color: "var(--danger)", padding: "2px" }} title="삭제"><Trash2 size={11} /></button>
             </>

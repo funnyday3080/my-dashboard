@@ -82,18 +82,28 @@ export default function NotesPage() {
   }, [user, setFolders]);
 
   const deleteFolder = useCallback(async (id: string) => {
-    setFolders(prev => prev.filter(f => f.id !== id));
-    setNotes(prev => prev.filter(n => n.folderId !== id));
-    setSelectedFolderId(prev => prev === id ? null : prev);
+    // 하위 폴더 포함 전체 삭제할 ID 수집
+    const getAllDescendantIds = (parentId: string, allFolders: NoteFolder[]): string[] => {
+      const children = allFolders.filter(f => f.parentId === parentId);
+      return [parentId, ...children.flatMap(c => getAllDescendantIds(c.id, allFolders))];
+    };
+    const folderIds = getAllDescendantIds(id, folders);
+
+    setFolders(prev => prev.filter(f => !folderIds.includes(f.id)));
+    setNotes(prev => prev.filter(n => !folderIds.includes(n.folderId)));
+    setSelectedFolderId(prev => folderIds.includes(prev ?? "") ? null : prev);
     setSelectedNoteId(prev => {
-      const killed = notes.filter(n => n.folderId === id).map(n => n.id);
+      const killed = notes.filter(n => folderIds.includes(n.folderId)).map(n => n.id);
       return killed.includes(prev ?? "") ? null : prev;
     });
     if (user && db) {
-      try { await deleteDoc(doc(db, "users", user.uid, "folders", id)); }
-      catch (e) { console.error("folder 삭제 오류:", e); }
+      try {
+        await Promise.all(folderIds.map(fid => deleteDoc(doc(db, "users", user.uid, "folders", fid))));
+        const noteIds = notes.filter(n => folderIds.includes(n.folderId)).map(n => n.id);
+        await Promise.all(noteIds.map(nid => deleteDoc(doc(db, "users", user.uid, "notes", nid))));
+      } catch (e) { console.error("folder 삭제 오류:", e); }
     }
-  }, [user, notes, setFolders, setNotes]);
+  }, [user, folders, notes, setFolders, setNotes]);
 
   const renameFolder = useCallback(async (id: string, name: string) => {
     setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
