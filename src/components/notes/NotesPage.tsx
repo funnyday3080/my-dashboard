@@ -44,10 +44,24 @@ export default function NotesPage() {
   useEffect(() => {
     if (!db || !user) return;
 
+    let foldersInitialized = false;
+    let notesInitialized = false;
+
     const unsubFolders = onSnapshot(
       query(collection(db, "users", user.uid, "folders"), orderBy("createdAt", "asc")),
-      (snap) => {
+      async (snap) => {
         const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as NoteFolder));
+        if (!foldersInitialized) {
+          foldersInitialized = true;
+          // Firestore가 비어있고 로컬에 데이터가 있으면 로컬 → Firestore 업로드
+          if (data.length === 0) {
+            const local = loadFolders();
+            if (local.length > 0) {
+              await Promise.all(local.map(f => setDoc(doc(db!, "users", user.uid, "folders", f.id), f)));
+              return; // onSnapshot이 업로드 후 다시 발동됨
+            }
+          }
+        }
         setFoldersState(data);
         saveFolders(data);
       },
@@ -56,8 +70,18 @@ export default function NotesPage() {
 
     const unsubNotes = onSnapshot(
       query(collection(db, "users", user.uid, "notes"), orderBy("createdAt", "asc")),
-      (snap) => {
+      async (snap) => {
         const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as NotePage));
+        if (!notesInitialized) {
+          notesInitialized = true;
+          if (data.length === 0) {
+            const local = loadNotes();
+            if (local.length > 0) {
+              await Promise.all(local.map(n => setDoc(doc(db!, "users", user.uid, "notes", n.id), n)));
+              return;
+            }
+          }
+        }
         setNotesState(data);
         saveNotes(data);
       },

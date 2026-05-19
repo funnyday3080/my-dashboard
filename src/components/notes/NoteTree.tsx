@@ -94,17 +94,21 @@ function FolderNode({
             </span>
           </span>
         )}
-        <div className="folder-actions" style={{ display: "flex", gap: "2px" }}>
+        <div
+          className="folder-actions"
+          style={{ display: "flex", gap: "2px", opacity: isSelected ? 1 : undefined }}
+          onClick={e => e.stopPropagation()}
+        >
           {editing ? (
             <>
-              <button onClick={(e) => { e.stopPropagation(); handleRename(); }} style={{ color: "var(--success)", padding: "2px" }}><Check size={11} /></button>
-              <button onClick={(e) => { e.stopPropagation(); setEditing(false); }} style={{ color: "var(--muted)", padding: "2px" }}><X size={11} /></button>
+              <button onClick={(e) => { e.stopPropagation(); handleRename(); }} style={{ background: "none", border: "none", color: "var(--success)", padding: "2px", cursor: "pointer" }}><Check size={11} /></button>
+              <button onClick={(e) => { e.stopPropagation(); setEditing(false); }} style={{ background: "none", border: "none", color: "var(--muted)", padding: "2px", cursor: "pointer" }}><X size={11} /></button>
             </>
           ) : (
             <>
-              <button onClick={(e) => { e.stopPropagation(); onAddFolder("새 폴더", folder.id); setOpen(true); }} style={{ color: "var(--muted)", padding: "2px" }} title="하위 폴더 추가"><FolderPlus size={11} /></button>
-              <button onClick={(e) => { e.stopPropagation(); setEditing(true); }} style={{ color: "var(--muted)", padding: "2px" }} title="이름 변경"><Edit2 size={11} /></button>
-              <button onClick={(e) => { e.stopPropagation(); if (confirm(`"${folder.name}" 폴더를 삭제하시겠습니까?`)) onDeleteFolder(folder.id); }} style={{ color: "var(--danger)", padding: "2px" }} title="삭제"><Trash2 size={11} /></button>
+              <button onClick={(e) => { e.stopPropagation(); onAddFolder("새 폴더", folder.id); setOpen(true); }} style={{ background: "none", border: "none", color: "var(--muted)", padding: "2px", cursor: "pointer" }} title="하위 폴더 추가"><FolderPlus size={11} /></button>
+              <button onClick={(e) => { e.stopPropagation(); setEditing(true); }} style={{ background: "none", border: "none", color: "var(--muted)", padding: "2px", cursor: "pointer" }} title="이름 변경"><Edit2 size={11} /></button>
+              <button onClick={(e) => { e.stopPropagation(); if (confirm(`"${folder.name}" 폴더를 삭제하시겠습니까?`)) onDeleteFolder(folder.id); }} style={{ background: "none", border: "none", color: "var(--danger)", padding: "2px", cursor: "pointer" }} title="삭제"><Trash2 size={11} /></button>
             </>
           )}
         </div>
@@ -181,6 +185,11 @@ export default function NoteTree({
     onAddFolder("새 폴더", null);
   };
 
+  const handleAddSubFolder = () => {
+    if (!selectedFolderId) return;
+    onAddFolder("새 폴더", selectedFolderId);
+  };
+
   const handleAddNote = () => {
     if (!selectedFolderId) {
       alert("먼저 폴더를 선택하세요.");
@@ -199,6 +208,7 @@ export default function NoteTree({
         <div style={{ display: "flex", gap: "6px" }}>
           <button
             onClick={handleAddFolder}
+            title="최상위 폴더 추가"
             style={{
               flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px",
               padding: "7px 4px", borderRadius: "8px", fontSize: "0.74rem", fontWeight: 600,
@@ -206,21 +216,38 @@ export default function NoteTree({
               color: "var(--foreground)", cursor: "pointer",
             }}
           >
-            <FolderPlus size={13} /> 폴더 추가
+            <FolderPlus size={13} /> 폴더
+          </button>
+          <button
+            onClick={handleAddSubFolder}
+            title="선택된 폴더 아래에 하위 폴더 추가"
+            disabled={!selectedFolderId}
+            style={{
+              flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px",
+              padding: "7px 4px", borderRadius: "8px", fontSize: "0.74rem", fontWeight: 600,
+              border: `1px solid ${selectedFolderId ? "var(--primary)" : "var(--border)"}`,
+              background: "var(--accent)",
+              color: selectedFolderId ? "var(--primary)" : "var(--muted)",
+              cursor: selectedFolderId ? "pointer" : "default",
+              opacity: selectedFolderId ? 1 : 0.45,
+            }}
+          >
+            <FolderPlus size={13} /> 하위
           </button>
           <button
             onClick={handleAddNote}
+            title="선택된 폴더에 노트 추가"
             style={{
               flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "4px",
               padding: "7px 4px", borderRadius: "8px", fontSize: "0.74rem", fontWeight: 600,
               border: `1px solid ${selectedFolderId ? "var(--primary)" : "var(--border)"}`,
               background: selectedFolderId ? "var(--primary)" : "var(--accent)",
               color: selectedFolderId ? "#fff" : "var(--muted)",
-              cursor: "pointer",
+              cursor: selectedFolderId ? "pointer" : "default",
               opacity: selectedFolderId ? 1 : 0.55,
             }}
           >
-            <FilePlus size={13} /> 노트 추가
+            <FilePlus size={13} /> 노트
           </button>
         </div>
         {selectedFolder && (
