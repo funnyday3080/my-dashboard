@@ -10,11 +10,11 @@ interface Props {
   selectedFolderId: string | null;
   onSelectNote: (id: string) => void;
   onSelectFolder: (id: string | null) => void;
-  onAddFolder: (name: string, parentId: string | null) => string;
-  onDeleteFolder: (id: string) => void;
-  onRenameFolder: (id: string, name: string) => void;
-  onAddNote: (folderId: string) => string;
-  onDeleteNote: (id: string) => void;
+  onAddFolder: (name: string, parentId: string | null) => string | Promise<string>;
+  onDeleteFolder: (id: string) => void | Promise<void>;
+  onRenameFolder: (id: string, name: string) => void | Promise<void>;
+  onAddNote: (folderId: string) => string | Promise<string>;
+  onDeleteNote: (id: string) => void | Promise<void>;
 }
 
 function FolderNode({
@@ -28,11 +28,11 @@ function FolderNode({
   selectedFolderId: string | null;
   onSelectNote: (id: string) => void;
   onSelectFolder: (id: string | null) => void;
-  onAddFolder: (name: string, parentId: string | null) => string;
-  onDeleteFolder: (id: string) => void;
-  onRenameFolder: (id: string, name: string) => void;
-  onAddNote: (folderId: string) => string;
-  onDeleteNote: (id: string) => void;
+  onAddFolder: (name: string, parentId: string | null) => string | Promise<string>;
+  onDeleteFolder: (id: string) => void | Promise<void>;
+  onRenameFolder: (id: string, name: string) => void | Promise<void>;
+  onAddNote: (folderId: string) => string | Promise<string>;
+  onDeleteNote: (id: string) => void | Promise<void>;
   depth: number;
 }) {
   const [open, setOpen] = useState(true);
