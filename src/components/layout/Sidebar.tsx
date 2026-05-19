@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CheckSquare, Calendar, BookOpen, Settings, LayoutDashboard, Bookmark } from "lucide-react";
+import { CheckSquare, Calendar, BookOpen, Settings, LayoutDashboard, Bookmark, TrendingUp } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 
 const nav = [
@@ -10,6 +10,7 @@ const nav = [
   { href: "/calendar",  label: "캘린더",    icon: Calendar },
   { href: "/notes",     label: "공부 노트", icon: BookOpen },
   { href: "/scrapbook", label: "스크랩북",  icon: Bookmark },
+  { href: "/stocks",    label: "주식",      icon: TrendingUp },
 ];
 
 export default function Sidebar() {
